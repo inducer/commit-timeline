@@ -90,19 +90,21 @@ function on_load()
 
   var band_infos = [
     Timeline.createBandInfo({
-        width:          "90%", 
+        width:          "90%%", 
         eventSource:    event_source,
         intervalUnit:   Timeline.DateTime.WEEK, 
         intervalPixels: 250,
+        timeZone:       %(timezone)d
     }),
     Timeline.createBandInfo({
         layout:         "overview",
-        width:          "10%", 
+        width:          "10%%", 
         trackHeight:    0.5,
         trackGap:       0.2,
         eventSource:    event_source,
         intervalUnit:   Timeline.DateTime.MONTH, 
-        intervalPixels: 50
+        intervalPixels: 50,
+        timeZone:       %(timezone)d
     }),
   ];
   band_infos[1].syncWith = 0;
@@ -233,7 +235,8 @@ def main():
     parser.add_option("-o", "--output-dir", metavar="DIRNAME",
             default="timeline")
     parser.add_option("--timeline-js", metavar="JAVASCRIPT",
-            default="http://static.simile.mit.edu/timeline/api-2.3.0/timeline-api.js")
+            default="http://static.simile.mit.edu/timeline/api-dev/timeline-api.js")
+    parser.add_option("--timezone", metavar="TZ", type="int", default=0)
     parser.add_option("-d", "--delete", action="store_true")
     options, args = parser.parse_args()
 
@@ -251,7 +254,9 @@ def main():
         open(join(options.output_dir, "index.html"), "w").write(TL_HTML % {
           "timeline_js": options.timeline_js
           })
-        open(join(options.output_dir, "main.js"), "w").write(TL_JS)
+        open(join(options.output_dir, "main.js"), "w").write(TL_JS % {
+            "timezone": options.timezone
+            })
         open(join(options.output_dir, "main.css"), "w").write(TL_CSS)
     else:
         parser.print_help()
