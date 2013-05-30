@@ -14,13 +14,11 @@ colors = [
 
 
 def make_commit_xml(subdirs, url_pattern):
-    import sys
     from os import getcwd
     from os.path import join, basename
-    from subprocess import Popen
     from git import Repo
     from xml.dom.minidom import Document
-    from time import asctime
+    from time import localtime, asctime
 
     doc = Document()
     data = doc.createElement("data")
@@ -33,9 +31,7 @@ def make_commit_xml(subdirs, url_pattern):
 
         repo = Repo(join(getcwd(), subdir))
 
-        cnt = repo.commit_count()
-
-        for commit in repo.commits(max_count=cnt):
+        for commit in repo.iter_commits():
             com_xml = doc.createElement("event")
             data.appendChild(com_xml)
             msg = commit.message.split("\n")
@@ -49,25 +45,23 @@ def make_commit_xml(subdirs, url_pattern):
             if len(short_title) > 25:
                 short_title = short_title[:23]+"..."
 
-            com_xml.setAttribute("start", asctime(commit.committed_date))
+            com_xml.setAttribute("start", asctime(localtime(commit.committed_date)))
             com_xml.setAttribute("title", short_title)
             com_xml.setAttribute("caption", title)
             com_xml.setAttribute("color", project_color)
             com_xml.setAttribute("link", url_pattern % {
                 "project": subdir_base,
-                "commit": commit.id,
+                "commit": commit.hexsha,
                 })
 
-            descr = "Project:%s<br>Author: %s<br>%s" % (
+            descr = u"Project:%s<br>Author: %s<br>%s" % (
                 subdir_base,
-                commit.committer, 
+                commit.committer,
                 "\n".join(msg[1:]))
             com_txt = doc.createTextNode(descr)
             com_xml.appendChild(com_txt)
 
     return doc.toprettyxml(indent="  ")
-
-
 
 
 def erase_dir(dir):
@@ -78,31 +72,29 @@ def erase_dir(dir):
     rmdir(dir)
 
 
-
-
 TL_JS = """
 var tl;
 var resize_timer_id = null;
 
-function on_load() 
+function on_load()
 {
   var event_source = new Timeline.DefaultEventSource(0);
 
   var band_infos = [
     Timeline.createBandInfo({
-        width:          "90%%", 
+        width:          "90%%",
         eventSource:    event_source,
-        intervalUnit:   Timeline.DateTime.WEEK, 
+        intervalUnit:   Timeline.DateTime.WEEK,
         intervalPixels: 250,
         timeZone:       %(timezone)d
     }),
     Timeline.createBandInfo({
         layout:         "overview",
-        width:          "10%%", 
+        width:          "10%%",
         trackHeight:    0.5,
         trackGap:       0.2,
         eventSource:    event_source,
-        intervalUnit:   Timeline.DateTime.MONTH, 
+        intervalUnit:   Timeline.DateTime.MONTH,
         intervalPixels: 50,
         timeZone:       %(timezone)d
     }),
@@ -111,15 +103,15 @@ function on_load()
   band_infos[1].highlight = true;
 
   tl = Timeline.create(
-    document.getElementById("commit-timeline"), 
+    document.getElementById("commit-timeline"),
     band_infos,
     Timeline.HORIZONTAL);
-  Timeline.loadXML("commits.xml", 
+  Timeline.loadXML("commits.xml",
     function(xml, url) { event_source.loadXML(xml, url); }
     );
 }
 
-function on_resize() 
+function on_resize()
 {
     if (resize_timer_id == null) {
         resize_timer_id = window.setTimeout(function() {
@@ -129,12 +121,12 @@ function on_resize()
     }
 }
 
-function fill_info_bubble(evt, elmt, theme, labeller) 
+function fill_info_bubble(evt, elmt, theme, labeller)
 {
   var doc = elmt.ownerDocument;
-  
+
   var link = evt.getLink();
-  
+
   var divTitle = doc.createElement("div");
   var textTitle = doc.createTextNode(evt._title);
 
@@ -148,20 +140,20 @@ function fill_info_bubble(evt, elmt, theme, labeller)
   }
   theme.event.bubble.titleStyler(divTitle);
   elmt.appendChild(divTitle);
-  
+
   var divBody = doc.createElement("div");
   evt.fillDescription(divBody);
   theme.event.bubble.bodyStyler(divBody);
   elmt.appendChild(divBody);
-  
+
   var divTime = doc.createElement("div");
   evt.fillTime(divTime, labeller);
   theme.event.bubble.timeStyler(divTime);
   elmt.appendChild(divTime);
 }
 
-Timeline.OriginalEventPainter.prototype._showBubble = function(x, y, evt) 
-{ 
+Timeline.OriginalEventPainter.prototype._showBubble = function(x, y, evt)
+{
   var div = document.createElement("div");
   var themeBubble = this._params.theme.event.bubble;
   fill_info_bubble(evt, div, this._params.theme, this._band.getLabeller());
@@ -174,7 +166,7 @@ Timeline.OriginalEventPainter.prototype._showBubble = function(x, y, evt)
 
 TL_CSS = """
 #commit-timeline {
-  height: 100%; 
+  height: 100%;
   border: 1px solid #aaa;
   font-size:8pt;
   font-family: Verdana,Arial,sans-serif ;
@@ -222,16 +214,15 @@ TL_HTML = """
 """
 
 
-
+# pip install GitPython
 
 def main():
-    import sys
     from optparse import OptionParser
 
     parser = OptionParser(usage="[options] git-tree git-tree ...")
 
-    parser.add_option("--url-pattern", metavar="URL", 
-            default="http://git.tiker.net/%(project)s.git/commitdiff/%(commit)s")
+    parser.add_option("--url-pattern", metavar="URL",
+            default="http://github.com/inducer/%(project)s/commit/%(commit)s")
     parser.add_option("-o", "--output-dir", metavar="DIRNAME",
             default="timeline")
     parser.add_option("--timeline-js", metavar="JAVASCRIPT",
@@ -247,21 +238,21 @@ def main():
         from os import makedirs
         makedirs(options.output_dir)
 
+        import codecs
         from os.path import join
-        open(join(options.output_dir, "commits.xml"), "w").write(
-                make_commit_xml(args, options.url_pattern))
+        codecs.open(join(options.output_dir, "commits.xml"),
+                "w", encoding="utf-8").write(
+                unicode(make_commit_xml(args, options.url_pattern)))
 
         open(join(options.output_dir, "index.html"), "w").write(TL_HTML % {
-          "timeline_js": options.timeline_js
-          })
+            "timeline_js": options.timeline_js
+            })
         open(join(options.output_dir, "main.js"), "w").write(TL_JS % {
             "timezone": options.timezone
             })
         open(join(options.output_dir, "main.css"), "w").write(TL_CSS)
     else:
         parser.print_help()
-
-
 
 
 if __name__ == "__main__":
